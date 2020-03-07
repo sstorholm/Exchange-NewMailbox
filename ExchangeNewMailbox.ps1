@@ -26,6 +26,27 @@ switch ($selectionMBDB)
          $MBDB = 'MBDB1'
      }
  }
+
+Write-Host "====================== User Company ======================"
+Write-Host "Select 1 for Costoso"
+Write-Host "Select 2 for Northwind Traders"
+Write-Host "Select 3 for Blue Yonder Airlines"
+
+$selectionCompany = Read-Host 
+
+switch ($selectionCompany)
+ {
+     '1' {
+         $Company = 'Costoso'
+         $Office = 'Los Angeles'
+     } '2' {
+         $Company = 'Northwind Traders'
+         $Office = 'Helsinki'
+     } '3' {
+         $Company = 'Blue Yonder Airlines'
+         $Office = 'London'
+ }
+
 Write-Host "================ User Organizational Unit ================"
 Write-Host "Select 1 for United States of America"
 Write-Host "Select 2 for Finland"
@@ -46,12 +67,22 @@ switch ($selectionOU)
      }
  }
 Write-Host "================ Final Settings ================"
-Write-Host "User Full Name: $FullName"
-Write-Host "User E-mail Alias: $Alias"
-Write-Host "User UPN: $UPN"
-Write-Host "User Mailbox DB: $MBDB"
-Write-Host "User OrgUnit CN: $OU"
+Write-Host "User Full Name:     $FullName"
+Write-Host "User E-mail Alias:  $Alias"
+Write-Host "User UPN:           $UPN"
+Write-Host "Company:            $Company"
+Write-Host "Office:             $Office"
+Write-Host "User Mailbox DB:    $MBDB"
+Write-Host "User OrgUnit CN:    $OU"
 
 New-Mailbox -Name "$FullName" -UserPrincipalName $UPN -Alias $Alias -Database $MBDB -OrganizationalUnit $OU -Password (ConvertTo-SecureString -String 'ChangeMe123' -AsPlainText -Force) -FirstName $FirstName -LastName $LastName
+
+Set-User -Identity $UPN -Office $Office -Company $Company
+
+if ($Company.StartsWith("North")) {
+    $NWTEmail = $Alias + "@northwindtraders.com"
+    Set-Mailbox -Identity $UPN -EmailAddressPolicyEnabled $false
+    Set-Mailbox -Identity $UPN -EmailAddresses @{add="SMTP:$NWTEmail"}
+}
 
 Remove-PSSession $Session
