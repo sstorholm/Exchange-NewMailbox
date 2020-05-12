@@ -8,7 +8,7 @@
 ##########################################################################
 
 # Specify specific Domain Contoller
-$DomainController = "kattad5.katterno.fi"
+$DomainController = "dc.costoso.com"
 
 # Get credentials and create a PS session to the Exchange server
 $UserCredential = Get-Credential
