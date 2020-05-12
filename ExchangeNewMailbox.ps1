@@ -12,7 +12,7 @@ $DomainController = "dc.costoso.com"
 
 # Get credentials and create a PS session to the Exchange server
 $UserCredential = Get-Credential
-$SessionExchange = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri http://kattmail3.katterno.fi/PowerShell/ -Authentication Kerberos -Credential $UserCredential
+$SessionExchange = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri http://exchange.costoso.com/PowerShell/ -Authentication Kerberos -Credential $UserCredential
 Import-PSSession $SessionExchange -DisableNameChecking
 
 # Take first and last name as input and generate necessary variations for creating the mailbox
@@ -117,7 +117,7 @@ if ($DistSelect -eq 1) {
 
 # Create the mailbox using the default password ChangeMe123 and all the parameters generated
 
-New-Mailbox -Name "$FullName" -UserPrincipalName $UPN -Alias $Alias -Database $MBDB -OrganizationalUnit $OU -Password (ConvertTo-SecureString -String 'ChangeMe123' -AsPlainText -Force) -FirstName $FirstName -LastName $LastName
+New-Mailbox -Name "$FullName" -UserPrincipalName $UPN -Alias $Alias -Database $MBDB -OrganizationalUnit $OU -Password (ConvertTo-SecureString -String 'ChangeMe123' -AsPlainText -Force) -FirstName $FirstName -LastName $LastName -DomainController $DomainController
 
 # Set the user office and company parameters since they can't be done at mailbox creation.
 # ALTERNATIVE METHOD BELOW THROUGH AD INSTEAD OF EXCHANGE
@@ -127,8 +127,8 @@ New-Mailbox -Name "$FullName" -UserPrincipalName $UPN -Alias $Alias -Database $M
 
 if ($Company.StartsWith("North")) {
     $NWTEmail = $Alias + "@northwindtraders.com"
-    Set-Mailbox -Identity $UPN -EmailAddressPolicyEnabled $false
-    Set-Mailbox -Identity $UPN -EmailAddresses @{add="SMTP:$NWTEmail"}
+    Set-Mailbox -Identity $UPN -EmailAddressPolicyEnabled $false -DomainController $DomainController
+    Set-Mailbox -Identity $UPN -EmailAddresses @{add="SMTP:$NWTEmail"} -DomainController $DomainController
 }
 
 # User is stationed at HQ
