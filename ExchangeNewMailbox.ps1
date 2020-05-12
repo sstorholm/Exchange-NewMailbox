@@ -2,18 +2,18 @@
 # ExchangeNewMailbox Script
 # Creates a new mailbox and a new user and sets parameters accordingly
 # Sebastian Storholm 08.03.2020
-#
-# Updated version 2 by Sebastian Storholm 12.05.2020
-# - Added automation for distirbution groups
 ##########################################################################
+
 
 # Specify specific Domain Contoller
 $DomainController = "dc.costoso.com"
 
-# Get credentials and create a PS session to the Exchange server
+# Get credentials for admin session, create powershell session to Exchange server and import the necessary modules
+
 $UserCredential = Get-Credential
-$SessionExchange = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri http://exchange.costoso.com/PowerShell/ -Authentication Kerberos -Credential $UserCredential
-Import-PSSession $SessionExchange -DisableNameChecking
+
+$Session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri http://exchange.costoso.com/PowerShell/ -Authentication Kerberos -Credential $UserCredential
+Import-PSSession $Session -DisableNameChecking
 
 # Take first and last name as input and generate necessary variations for creating the mailbox
 
@@ -38,7 +38,7 @@ if ($Alias.length -gt 20) {
 Write-Host "================ Mailbox Database ================"
 Write-Host "Select 1 for MBDB1 (mailbox size limited to 4GB)"
 Write-Host "Select 2 for MBDB2 (mailbox size unlimited)"
-$selectionMBDB = Read-Host
+$selectionMBDB = Read-Host 
 
 switch ($selectionMBDB)
  {
@@ -56,14 +56,13 @@ Write-Host "Select 1 for Costoso"
 Write-Host "Select 2 for Northwind Traders"
 Write-Host "Select 3 for Blue Yonder Airlines"
 
-$selectionCompany = Read-Host
+$selectionCompany = Read-Host 
 
 switch ($selectionCompany)
  {
      '1' {
          $Company = 'Costoso'
          $Office = 'Los Angeles'
-         $DistSelect = '1'
      } '2' {
          $Company = 'Northwind Traders'
          $Office = 'Helsinki'
@@ -80,7 +79,7 @@ Write-Host "Select 1 for United States of America"
 Write-Host "Select 2 for Finland"
 Write-Host "Select 3 for United Kingdom"
 Write-Host "Select 4 for Sweden"
-$selectionOU = Read-Host
+$selectionOU = Read-Host 
 
 switch ($selectionOU)
  {
@@ -106,11 +105,6 @@ Write-Host "Office:             $Office"
 Write-Host "User Mailbox DB:    $MBDB"
 Write-Host "User OrgUnit CN:    $OU"
 
-if ($DistSelect -eq 1) {
-    Write-Host "User is stationed in Los Angeles"
-    Write-Host "Adding user to distribution group staff_la@contoso.com"
-}
-
 ###############################
 # TODO: Add confirmation dialog
 ###############################
@@ -120,10 +114,10 @@ if ($DistSelect -eq 1) {
 New-Mailbox -Name "$FullName" -UserPrincipalName $UPN -Alias $Alias -Database $MBDB -OrganizationalUnit $OU -Password (ConvertTo-SecureString -String 'ChangeMe123' -AsPlainText -Force) -FirstName $FirstName -LastName $LastName -DomainController $DomainController
 
 # Set the user office and company parameters since they can't be done at mailbox creation.
-# ALTERNATIVE METHOD BELOW THROUGH AD INSTEAD OF EXCHANGE
-# Set-User -Identity $UPN -Office $Office -Company $Company
 
-# Logic for adding non-standard primary SMTP addresses for certian companies
+Set-User -Identity $UPN -Office $Office -Company $Company
+
+# Logic for adding non-standard primary SMTP addresses for certian companies 
 
 if ($Company.StartsWith("North")) {
     $NWTEmail = $Alias + "@northwindtraders.com"
@@ -131,24 +125,6 @@ if ($Company.StartsWith("North")) {
     Set-Mailbox -Identity $UPN -EmailAddresses @{add="SMTP:$NWTEmail"} -DomainController $DomainController
 }
 
-# User is stationed at HQ
-if ($DistSelect -eq 1) {
-    Add-DistributionGroupMember -Identity "staff_la" -Member $Alias -DomainController $DomainController
-}
+# Clean up session upon exit
 
-# Create a new session to a domain controller for setting the Log On script and home directory stuff since it can't be done through Exchange
-
-$SessionAD = New-PSSession -ComputerName $DomainController -Credential $UserCredential
-Invoke-Command $SessionAD -Scriptblock { Import-Module ActiveDirectory }
-Import-PSSession -Session $SessionAD -module ActiveDirectory
-
-Set-ADUser -Identity $UPN.Replace("@contoso.com","") -ScriptPath $LogOnScript -HomeDrive 'H:' -HomeDirectory $HomeDirectory
-
-#Set the Office and Company parameters for the user using the Exchange Powershell CMDlet
-
-Set-ADUser -Identity $UPN -Office $Office -Company $Company
-
-# Clean up sessions upon exit
-
-Remove-PSSession $SessionExchange
-Remove-PSSession $SessionAD
+Remove-PSSession $Session
