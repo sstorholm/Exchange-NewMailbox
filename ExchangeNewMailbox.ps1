@@ -7,10 +7,13 @@
 # - Added automation for distirbution groups
 ##########################################################################
 
-# Specify specific Domain Contoller
+# Specify specific Domain Contoller, this is important since mailbox creation is a lot faster than AD sync, so if you let Exchange pick a DC at random
+# you'll have troubles later in the script
+
 $DomainController = "dc.costoso.com"
 
 # Get credentials and create a PS session to the Exchange server
+
 $UserCredential = Get-Credential
 $SessionExchange = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri http://exchange.costoso.com/PowerShell/ -Authentication Kerberos -Credential $UserCredential
 Import-PSSession $SessionExchange -DisableNameChecking
@@ -24,8 +27,11 @@ $Alias = $FirstName.ToLower() + '.' + $LastName.ToLower()
 $FullName = "$FirstName $LastName"
 $UPN = $Alias + "@contoso.com"
 
+
 # To avoid having longer aliases truncated and thus creating discrepancy between usernames and email aliases (aka. UPN will be 20 first chars of alias)
 # Check for longer aliases than 20 chars, and if that's the case, have the admin truncate the UPN manually
+# This is important since we don't want to just trunkate the overflowing characters and end up with a random login name
+# This also allows us to keep the e-mail address the full name of the user while having a shorter logon name
 
 if ($Alias.length -gt 20) {
     Write-Output "ERROR: Alias greater than 20 characters - Please enter user principal name manually!"
@@ -63,13 +69,26 @@ switch ($selectionCompany)
      '1' {
          $Company = 'Costoso'
          $Office = 'Los Angeles'
+         $ADc = "US"
+         $ADco = "United States"
+         $ADcc = 840
          $DistSelect = '1'
      } '2' {
          $Company = 'Northwind Traders'
          $Office = 'Helsinki'
+         $ADc = "FI"
+         $ADco = "Finland"
+         $ADcc = 246
+
      } '3' {
          $Company = 'Blue Yonder Airlines'
          $Office = 'London'
+         $ADc = "GB"
+         $ADco = "United Kingdom"
+         $ADcc = 826
+         $City = "London"
+         $StreetAddress = "10 Downing Street"
+         $PostalCode = "X567AB"
             }
  }
 
@@ -106,6 +125,8 @@ Write-Host "Office:             $Office"
 Write-Host "User Mailbox DB:    $MBDB"
 Write-Host "User OrgUnit CN:    $OU"
 
+
+
 if ($DistSelect -eq 1) {
     Write-Host "User is stationed in Los Angeles"
     Write-Host "Adding user to distribution group staff_la@contoso.com"
@@ -136,17 +157,36 @@ if ($DistSelect -eq 1) {
     Add-DistributionGroupMember -Identity "staff_la" -Member $Alias -DomainController $DomainController
 }
 
-# Create a new session to a domain controller for setting the Log On script and home directory stuff since it can't be done through Exchange
+# Create a new session to the same domain controller that we've been using for creating the mailbox
+# for setting stuff that can't be done through Exchange
 
 $SessionAD = New-PSSession -ComputerName $DomainController -Credential $UserCredential
 Invoke-Command $SessionAD -Scriptblock { Import-Module ActiveDirectory }
 Import-PSSession -Session $SessionAD -module ActiveDirectory
 
-Set-ADUser -Identity $UPN.Replace("@contoso.com","") -ScriptPath $LogOnScript -HomeDrive 'H:' -HomeDirectory $HomeDirectory
+# Generate SamAccountName from UPN since ADUser cmdlets doesn't understand UserPrincipalName as Identity
+# Alias can't be reused since it might not be equal to SamAccountName
+
+$SamAccountName = $UPN.Replace("@contoso.com","")
+
+# Set HomeDirectory and LogOnScript for the user
+
+Set-ADUser -Identity $SamAccountName -ScriptPath $LogOnScript -HomeDrive 'H:' -HomeDirectory $HomeDirectory
 
 #Set the Office and Company parameters for the user using the Exchange Powershell CMDlet
 
-Set-ADUser -Identity $UPN -Office $Office -Company $Company
+Set-ADUser -Identity $SamAccountName -Office $Office -Company $Company
+
+# Set the street address, postal code and city for the user object
+
+Set-ADUser -Identity $SamAccountName -StreetAddress $StreetAddress -City $City -PostalCode $PostalCode
+
+# Set country properties for user
+# This is rather complicated as you need to set all those properties manually, c is the ISO 3166-1 alpha-2 abriviation, and the country code is
+# the ISO 3166-1 numeric code. Additionally, the countrycode attribute set the language preferrence of the user.DESCRIPTION
+# See https://en.wikipedia.org/wiki/List_of_ISO_3166_country_codes for a list of possible ISO 3166 codes. 
+
+Set-ADUser $SamAccountName -Replace @{c=$ADc;co=$ADco;countrycode=$ADcc}
 
 # Clean up sessions upon exit
 
